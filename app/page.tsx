@@ -1,19 +1,33 @@
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      <h1 className="text-2xl font-bold">Filters architecture — demo</h1>
+      <p className="text-sm text-muted-foreground">
+        Each link is a different route shape. Set some filters, navigate away and
+        back, switch entities, and compare URLs across modules.
+      </p>
+
+      <section className="flex flex-col gap-1">
+        <h2 className="font-semibold">App: platform</h2>
+        <Link className="text-primary underline" href="/platform/admin/users">
+          Top-level page — admin/users (no scope)
+        </Link>
+        <Link className="text-primary underline" href="/platform/agents/agent-1/analytics">
+          Entity page — agents/agent-1/analytics (scope = agent id)
+        </Link>
+        <Link className="text-primary underline" href="/platform/workflows/wf-1/analytics">
+          Entity page — workflows/wf-1/analytics (same shape, isolated)
+        </Link>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <h2 className="font-semibold">App: supervisor</h2>
+        <Link className="text-primary underline" href="/supervisor/open-cases">
+          Top-level page — supervisor/open-cases (different app)
+        </Link>
+      </section>
     </div>
   )
 }

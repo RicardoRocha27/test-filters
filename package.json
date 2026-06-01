@@ -9,15 +9,18 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@tanstack/react-query": "^5.100.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "next": "16.1.7",
     "next-themes": "^0.4.6",
+    "nuqs": "^2.8.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "shadcn": "^4.8.0",
@@ -32,9 +35,10 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.1.7",
+    "playwright": "^1.60.0",
+    "postcss": "^8",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "postcss": "^8",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3"
   }
