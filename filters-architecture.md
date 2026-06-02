@@ -8,8 +8,8 @@ the folder structure, and how every route shape maps onto it.
 
 > **This repo is a verified reference, not a drop-in app.** The part that
 > transfers to a real codebase is the core in **`lib/filters/`**
-> (`create-module-filters`, `use-filter-snapshot`, `parsers`, `prefixes`) plus the
-> `usePreference` primitive. Everything under `lib/demo/`, `components/demo/`,
+> (`create-module-filters`, `use-filter-snapshot`, `parsers`, `prefixes`).
+> Everything under `lib/demo/`, `components/demo/`,
 > `components/query-provider.tsx`, and `app/**` is illustrative scaffolding — a fake
 > API, a generic table view, and one page per route shape — meant to be read and
 > copied, not shipped. `scripts/e2e.mjs` is a Playwright harness worth keeping as a
@@ -87,12 +87,13 @@ state **and** sticky personal preference, with live merging. Split them:
 | Stored in  | **URL** (nuqs), namespaced                   | **`localStorage`** only — never the URL           |
 | Stickiness | **`sessionStorage`** seed (per scope)        | `localStorage` (across sessions/tabs)             |
 | Lifetime   | this browsing session                        | forever, across tabs                              |
-| Primitive  | `createModuleFilters()`                      | `usePreference()`                                 |
+| Primitive  | `createModuleFilters()`                      | a small `localStorage` hook (not shipped here)    |
 
 - **`createModuleFilters`** → namespaced, typed nuqs hook + optional
-  entity-scoped `sessionStorage` seed.
-- **`usePreference`** → tiny `localStorage`-only hook, deliberately kept out of
-  the URL.
+  entity-scoped `sessionStorage` seed. **This is the only primitive in this reference.**
+- **Personal preferences** are a documented *concept*, not a deliverable: when you
+  need them, add a tiny `localStorage`-only hook, deliberately kept out of the URL.
+  The split matters mainly as guidance for what does **not** belong in a filter.
 
 Rule of thumb: _"Would I want this in a link I send a teammate?"_ Yes → URL filter.
 No → preference.
@@ -165,8 +166,6 @@ lib/
     create-module-filters.ts   # the factory: namespaced nuqs hook + scope + session seed
     use-filter-snapshot.ts     # internal: seed-on-mount / rescope / write-through helper
     types.ts                   # shared types (Config, etc.)
-  preferences/
-    use-preference.ts          # localStorage-only personal prefs (NOT in the URL)
 
 modules/
   <module>/
@@ -540,7 +539,8 @@ The whole `filters-provider/` folder shrinks to a small factory + a snapshot hel
 - [ ] Use typed parsers from `lib/filters/parsers.ts`; never a generic JSON parser.
 - [ ] Validate at the edge: enums/literals over `parseAsString` for known domains;
       clamp out-of-range values after data loads (Layers 1–2, §11).
-- [ ] Navigational state → URL. Personal preferences → `usePreference` (localStorage).
+- [ ] Navigational state → URL. Keep personal preferences (column visibility,
+      density) out of the URL — a localStorage concern, not a filter.
 - [ ] `scope` returns the reset boundary explicitly; never parse the pathname.
 - [ ] Debounce the value feeding React Query, not the URL write.
 - [ ] The filter hook is pure state — keep React Query, columns, and filter UI in
@@ -550,8 +550,8 @@ The whole `filters-provider/` folder shrinks to a small factory + a snapshot hel
 
 ## 14. Migration path (incremental)
 
-1. Add `lib/filters/` (factory, parsers, prefixes, snapshot helper) and
-   `lib/preferences/use-preference.ts`. No behaviour change yet.
+1. Add `lib/filters/` (factory, parsers, prefixes, snapshot helper).
+   No behaviour change yet.
 2. Migrate **one** module (e.g. executions) to `createModuleFilters`. Verify URL
    namespacing, back-nav persistence, and entity rescoping.
 3. Migrate remaining modules one at a time. Each migration deletes its

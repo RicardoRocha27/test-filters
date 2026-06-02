@@ -48,8 +48,8 @@ shareable store — we stop rebuilding one on top of it.
 1. **The URL is the store.** `useQueryStates` is the single live source of truth.
    No `localState`, no live-merged `localStorageState`. Defaults live in the
    parser via `.withDefault()`.
-2. **Namespace every module by an explicit `prefix`.** `executions_page`,
-   `agentAnalytics_status`. Modules can't collide — even when a table, a quick
+2. **Namespace every module by an explicit `prefix`.** `exe_page`,
+   `aan_status` (3-letter codes; see §6). Modules can't collide — even when a table, a quick
    filter, and an export button share a page. This deletes all path-based module
    detection.
 3. **Colocate.** Each module owns `modules/<m>/filters.ts`. No module imports
@@ -67,12 +67,13 @@ shareable store — we stop rebuilding one on top of it.
 | Examples | page, search, status, date range, sort | column visibility, density |
 | Stored in | **URL** (nuqs), namespaced | `localStorage` (out of the URL) |
 | Stickiness | entity-scoped `sessionStorage` seed | `localStorage` |
-| Primitive | `createModuleFilters()` | `usePreference()` |
+| Primitive | `createModuleFilters()` | (a small `localStorage` hook, later) |
 
 Rule of thumb: _"Would I put it in a link I send a teammate?"_ Yes → URL. No →
-preference. **For the first migration, only the URL primitive is in scope.**
-Preferences (e.g. the per-table `localStorageKey` we already pass) can move to a
-dedicated `usePreference` later — keep them out of the filter layer.
+preference. **Only the URL primitive (`createModuleFilters`) is in scope.**
+Preferences (e.g. the per-table `localStorageKey` we already pass) stay where they
+are for now; the split matters mainly as guidance for what does **not** belong in
+the filter layer.
 
 ---
 
@@ -236,31 +237,41 @@ export const dateRange = {
 ```
 
 ```ts
-// src/lib/filters/prefixes.ts — one entry per filter-bearing module
+// src/lib/filters/prefixes.ts
+//
+// Convention: KEYS are readable (used in code — `FILTER_PREFIXES.executions`);
+// VALUES are short 3-letter codes that appear in the URL (`exe_page`), joined to
+// the filter key with an underscore. Values MUST stay globally unique — that
+// uniqueness is the whole namespacing guarantee. One entry per filter-bearing
+// module; add more as modules migrate.
 export const FILTER_PREFIXES = {
-  adminUsers: 'adminUsers',
-  agentUsers: 'agentUsers',
-  workflowUsers: 'workflowUsers',
-  executions: 'exec',
-  agentAnalytics: 'agentAnalytics',
-  workflowAnalytics: 'workflowAnalytics',
-  assistantAnalytics: 'assistantAnalytics',
-  evalSets: 'evalSets',
-  evalSetQuestions: 'evalSetQuestions',
-  runHistory: 'runHistory',
-  runDetailResults: 'runDetailResults',
-  knowledgeFiles: 'kFiles',
-  knowledgeWebUrls: 'kWebUrls',
-  knowledgeAudit: 'kAudit',
-  reportedIssues: 'reportedIssues',
-  suggestedIssues: 'suggestedIssues',
-  conversations: 'conversations',
-  supervisorOpenCases: 'supOpen',
-  supervisorClosedCases: 'supClosed',
+  adminUsers: 'adu',
+  agentUsers: 'agu',
+  workflowUsers: 'wfu',
+  executions: 'exe',
+  agentAnalytics: 'aan',
+  workflowAnalytics: 'wan',
+  assistantAnalytics: 'asa',
+  evalSets: 'evs',
+  evalSetQuestions: 'esq',
+  runHistory: 'rnh',
+  runDetailResults: 'rdr',
+  knowledgeFiles: 'knf',
+  knowledgeWebUrls: 'knw',
+  knowledgeAudit: 'kna',
+  reportedIssues: 'rpi',
+  suggestedIssues: 'sgi',
+  conversations: 'cnv',
+  supervisorOpenCases: 'soc',
+  supervisorClosedCases: 'scc',
+  supervisorWorkflowOpenCases: 'swo',
 } as const;
 
 export type FilterPrefix = (typeof FILTER_PREFIXES)[keyof typeof FILTER_PREFIXES];
 ```
+
+Example URLs: `?exe_page=2&exe_status=ERROR`, `?aan_orderBy=createdAt`. The code
+still reads `prefix: FILTER_PREFIXES.executions` — only the URL value is terse.
 
 ---
 
@@ -296,21 +307,24 @@ This replaces the entire `EntityProvider`-coupled reset machinery in the current
 The factory is **path-agnostic** — every route shape maps onto `prefix` + `scopeId`.
 Real routes:
 
+The `prefix` column shows the URL code; you reference it in code as the readable
+registry key (e.g. `FILTER_PREFIXES.executions` → `exe`).
+
 | Route | App | `prefix` | `scopeId` |
 | --- | --- | --- | --- |
-| `platform/admin/users` | platform | `adminUsers` | `undefined` (unscoped) |
-| `platform/agents/[agentId]/analytics` | platform | `agentAnalytics` | agent id |
-| `platform/agents/[agentId]/conversations` | platform | `conversations` | agent id |
-| `platform/agents/[agentId]/issues/reported` | platform | `reportedIssues` | agent id |
-| `platform/workflows/[workflowId]/executions` | platform | `executions` | workflow id |
-| `platform/workflows/[workflowId]/analytics` | platform | `workflowAnalytics` | workflow id |
-| `…/evals/eval-sets` | platform | `evalSets` | agent id |
-| `…/evals/eval-sets/[setId]/questions` | platform | `evalSetQuestions` | `${agentId}:${setId}` |
-| `…/evals/run-history/[runId]` | platform | `runDetailResults` | `${agentId}:${runId}` |
-| `platform/apps/assistant/analytics` | platform | `assistantAnalytics` | `undefined` |
-| `supervisor/cases/open` | supervisor | `supervisorOpenCases` | `undefined` |
-| `supervisor/cases/closed` | supervisor | `supervisorClosedCases` | `undefined` |
-| `supervisor/workflows/[workflowId]/cases/open` | supervisor | `supWfCasesOpen` | workflow id |
+| `platform/admin/users` | platform | `adu` | `undefined` (unscoped) |
+| `platform/agents/[agentId]/analytics` | platform | `aan` | agent id |
+| `platform/agents/[agentId]/conversations` | platform | `cnv` | agent id |
+| `platform/agents/[agentId]/issues/reported` | platform | `rpi` | agent id |
+| `platform/workflows/[workflowId]/executions` | platform | `exe` | workflow id |
+| `platform/workflows/[workflowId]/analytics` | platform | `wan` | workflow id |
+| `…/evals/eval-sets` | platform | `evs` | agent id |
+| `…/evals/eval-sets/[setId]/questions` | platform | `esq` | `${agentId}:${setId}` |
+| `…/evals/run-history/[runId]` | platform | `rdr` | `${agentId}:${runId}` |
+| `platform/apps/assistant/analytics` | platform | `asa` | `undefined` |
+| `supervisor/cases/open` | supervisor | `soc` | `undefined` |
+| `supervisor/cases/closed` | supervisor | `scc` | `undefined` |
+| `supervisor/workflows/[workflowId]/cases/open` | supervisor | `swo` | workflow id |
 
 Notes:
 

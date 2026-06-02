@@ -2,8 +2,10 @@ import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Suspense } from "react"
 import { cn } from "@/lib/utils"
 import { QueryProvider } from "@/components/query-provider"
+import { UrlBar } from "@/components/demo/url-bar"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -33,6 +35,9 @@ export default function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <NuqsAdapter>
+              <Suspense fallback={null}>
+                <UrlBar />
+              </Suspense>
               <main className="flex flex-col gap-6 p-6">{children}</main>
             </NuqsAdapter>
           </QueryProvider>
