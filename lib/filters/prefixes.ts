@@ -10,6 +10,12 @@ export const FILTER_PREFIXES = {
   agentAnalytics: "agentAnalytics",
   workflowAnalytics: "workflowAnalytics",
   supOpenCases: "supOpenCases",
+  // Shared dimension: one date range read/written by every page in an agent's
+  // analytics section (parent + child) — same prefix => shared state.
+  analyticsDateRange: "adr",
+  // The case-detail child's OWN search — same key name ("search") as the parent
+  // table, but a different prefix => fully isolated state.
+  caseDetail: "cad",
 } as const
 
 export type FilterPrefix = (typeof FILTER_PREFIXES)[keyof typeof FILTER_PREFIXES]

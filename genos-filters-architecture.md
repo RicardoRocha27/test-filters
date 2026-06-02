@@ -513,7 +513,32 @@ table uses — never a second source.
 
 ---
 
-## 14. i18n
+## 14. Sharing vs isolating filters across pages
+
+Cross-page behaviour falls out of **which hook a page calls** — there is no
+special mechanism to build:
+
+- **Share a dimension across pages** (e.g. a global analytics date range): have
+  the related pages call the **same** module filter hook (same `prefix`). They
+  read/write the same URL keys, so the value is shared by construction. To make it
+  survive navigation through a bare `<Link>`, give that hook `persist: 'session'`
+  and a `scope` that spans the pages (e.g. the agent id) — same hook + same scope
+  means the destination reseeds it from the snapshot. (Optional polish: build the
+  link with the hook's serialized query so a chart doesn't fetch-empty for one
+  frame; not needed for correctness.)
+- **Isolate a filter per view** (e.g. each topic's or each child page's own
+  search): give each view its **own** hook with its **own** `prefix`. A parent's
+  `aan_search` and a child's `cad_search` are different URL keys, so one can never
+  bleed into the other. Switching between entities of the *same* module (same hook,
+  different `scope`) is also isolated — the rescope loads that entity's snapshot,
+  so "abc" searched under topic A does not apply under topic B.
+
+> **Rule of thumb: same hook = shared, different hook = isolated.** That's the
+> whole model — nothing else is required.
+
+---
+
+## 15. i18n
 
 Filter *labels* and option text continue to come from `next-intl`
 (`useTranslations`). The architecture is values-only; nothing about it touches
@@ -522,7 +547,7 @@ labels, etc.
 
 ---
 
-## 15. What this deletes
+## 16. What this deletes
 
 - `src/providers/filters-provider/` — `FiltersProvider`, `FiltersContextBridge`,
   `useFilters`, `utils.ts`, types (the 4-source merge, `createJSONParser`,
@@ -535,7 +560,7 @@ labels, etc.
 
 ---
 
-## 16. Edge cases to keep in mind
+## 17. Edge cases to keep in mind
 
 - **Entity transiently `null`** (`useEntity().isLoading`) → handled by the
   three-state `scopeId` (§7); the snapshot waits.
@@ -553,7 +578,7 @@ labels, etc.
 
 ---
 
-## 17. Migration plan (incremental, no big bang)
+## 18. Migration plan (incremental, no big bang)
 
 1. Add `src/lib/filters/` (factory, snapshot, parsers, prefixes) and unit-test the
    parsers. No behaviour change yet. `FiltersProvider` stays.
@@ -571,7 +596,7 @@ labels, etc.
 
 ---
 
-## 18. Conventions checklist
+## 19. Conventions checklist
 
 - [ ] One `filters.ts` per module; never import another module's filters.
 - [ ] Register every `prefix` in `FILTER_PREFIXES`; keep them unique.

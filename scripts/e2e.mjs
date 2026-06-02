@@ -9,13 +9,18 @@ const read = async (page, prefix = "agentAnalytics") => {
   const m = url.match(new RegExp(`${prefix}_page=(\\d+)`))
   const urlPage = m ? Number(m[1]) : 1
   const filtersPage = await page
-    .locator("pre").first().textContent()
-    .then((t) => (t ? JSON.parse(t).page : 1)).catch(() => 1)
+    .getByTestId("module-filters")
+    .first()
+    .textContent()
+    .then((t) => (t ? JSON.parse(t).page : 1))
+    .catch(() => 1)
   return { url, urlPage, filtersPage }
 }
 
 const check = (name, cond, detail) => {
-  console.log(`  ${cond ? "✓" : "✗ FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`)
+  console.log(
+    `  ${cond ? "✓" : "✗ FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`
+  )
   if (!cond) failures++
 }
 
@@ -34,7 +39,9 @@ async function clickNext(page) {
   await next.waitFor()
   await page.waitForFunction(
     () => {
-      const b = [...document.querySelectorAll("button")].find((x) => x.textContent?.trim() === "Next")
+      const b = [...document.querySelectorAll("button")].find(
+        (x) => x.textContent?.trim() === "Next"
+      )
       return b && !b.disabled
     },
     { timeout: 10000 }
@@ -62,7 +69,11 @@ async function goPage2(page) {
   await page.waitForTimeout(800)
   const s = await read(page)
   check("URL has page=2", s.urlPage === 2, s.url)
-  check("filters.page === 2 (table matches URL)", s.filtersPage === 2, `filters.page=${s.filtersPage}`)
+  check(
+    "filters.page === 2 (table matches URL)",
+    s.filtersPage === 2,
+    `filters.page=${s.filtersPage}`
+  )
   await ctx.close()
 }
 
@@ -79,7 +90,11 @@ async function goPage2(page) {
   await page.waitForTimeout(800)
   const s = await read(page)
   check("URL has page=2", s.urlPage === 2, s.url)
-  check("filters.page === 2", s.filtersPage === 2, `filters.page=${s.filtersPage}`)
+  check(
+    "filters.page === 2",
+    s.filtersPage === 2,
+    `filters.page=${s.filtersPage}`
+  )
   await ctx.close()
 }
 
@@ -93,13 +108,21 @@ async function goPage2(page) {
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await page.waitForTimeout(800)
   let s = await read(page)
-  check("agent-2 starts clean (page=1)", s.urlPage === 1 && s.filtersPage === 1, s.url)
+  check(
+    "agent-2 starts clean (page=1)",
+    s.urlPage === 1 && s.filtersPage === 1,
+    s.url
+  )
   // back to agent-1 -> should restore page 2
   await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await page.waitForTimeout(800)
   s = await read(page)
-  check("agent-1 restores page=2", s.urlPage === 2 && s.filtersPage === 2, `${s.url} filters=${s.filtersPage}`)
+  check(
+    "agent-1 restores page=2",
+    s.urlPage === 2 && s.filtersPage === 2,
+    `${s.url} filters=${s.filtersPage}`
+  )
   await ctx.close()
 }
 
@@ -117,17 +140,28 @@ async function goPage2(page) {
 }
 
 const readFilters = async (page) =>
-  page.locator("pre").first().textContent().then((t) => JSON.parse(t)).catch(() => ({}))
+  page
+    .getByTestId("module-filters")
+    .first()
+    .textContent()
+    .then((t) => JSON.parse(t))
+    .catch(() => ({}))
 
 // 5) Layer 1: invalid enum value in the URL never reaches state
 {
   console.log("\n[5] invalid value in URL is sanitized at parse time")
   const { ctx, page } = await fresh()
-  await page.goto(`${BASE}/platform/admin/users?adminUsers_role=wizard&adminUsers_page=abc`)
+  await page.goto(
+    `${BASE}/platform/admin/users?adminUsers_role=wizard&adminUsers_page=abc`
+  )
   await waitForRows(page)
   await page.waitForTimeout(300)
   const f = await readFilters(page)
-  check("role 'wizard' -> null (treated as all)", f.role === null, `role=${JSON.stringify(f.role)}`)
+  check(
+    "role 'wizard' -> null (treated as all)",
+    f.role === null,
+    `role=${JSON.stringify(f.role)}`
+  )
   check("page 'abc' -> 1 (shape-valid)", f.page === 1, `page=${f.page}`)
   await ctx.close()
 }
@@ -136,13 +170,105 @@ const readFilters = async (page) =>
 {
   console.log("\n[6] out-of-range page clamps to last page after data loads")
   const { ctx, page } = await fresh()
-  await page.goto(`${BASE}/platform/agents/agent-1/analytics?agentAnalytics_page=999`)
+  await page.goto(
+    `${BASE}/platform/agents/agent-1/analytics?agentAnalytics_page=999`
+  )
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await waitForRows(page)
   await page.waitForTimeout(800)
   const s = await read(page)
   check("page clamped to 2 (URL)", s.urlPage === 2, s.url)
-  check("filters.page === 2 (state matches)", s.filtersPage === 2, `filters.page=${s.filtersPage}`)
+  check(
+    "filters.page === 2 (state matches)",
+    s.filtersPage === 2,
+    `filters.page=${s.filtersPage}`
+  )
+  await ctx.close()
+}
+
+// 7) SHARED dimension: the date range is shared with the child (same hook, carried)
+{
+  console.log("\n[7] shared date range carries parent → child")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.getByRole("button", { name: "Set sample range" }).click()
+  await page.waitForTimeout(400)
+  check(
+    "parent URL has adr_startDate",
+    page.url().includes("adr_startDate"),
+    page.url().replace(BASE, "")
+  )
+  const parentDates = await page.getByTestId("shared-dates").textContent()
+  check("parent shows the date", parentDates.includes("2025-01-01"))
+
+  await page.getByRole("link", { name: /Open case detail/ }).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.waitForTimeout(400)
+  check(
+    "child URL carries adr_startDate",
+    page.url().includes("adr_startDate"),
+    page.url().replace(BASE, "")
+  )
+  const childDates = await page.getByTestId("shared-dates").textContent()
+  check("child shows the SAME date (shared)", childDates.includes("2025-01-01"))
+  await ctx.close()
+}
+
+// 8) ISOLATED: same key name ("search") in parent and child, but separate state
+{
+  console.log("\n[8] same-named 'search' stays isolated parent vs child")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+
+  await page.getByPlaceholder("filter by name").fill("abc")
+  await page.waitForTimeout(400)
+  check(
+    "parent search -> agentAnalytics_search=abc",
+    page.url().includes("agentAnalytics_search=abc"),
+    page.url().replace(BASE, "")
+  )
+
+  await page.getByRole("link", { name: /Open case detail/ }).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.waitForTimeout(300)
+  check(
+    "parent search NOT carried to child",
+    !page.url().includes("agentAnalytics_search"),
+    page.url().replace(BASE, "")
+  )
+  const childFilters = await page.getByTestId("case-filters").textContent()
+  check(
+    "child's own search starts empty",
+    JSON.parse(childFilters).search === ""
+  )
+
+  await page.getByTestId("case-search").fill("xyz")
+  await page.waitForTimeout(400)
+  check(
+    "child search -> cad_search=xyz",
+    page.url().includes("cad_search=xyz"),
+    page.url().replace(BASE, "")
+  )
+
+  await page.getByRole("link", { name: /Back to analytics/ }).click()
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.waitForTimeout(700)
+  const back = await readFilters(page)
+  check(
+    "parent search restored to 'abc'",
+    back.search === "abc",
+    `search=${JSON.stringify(back.search)}`
+  )
+  check(
+    "child's 'xyz' did NOT leak to parent",
+    !page.url().includes("cad_search"),
+    page.url().replace(BASE, "")
+  )
   await ctx.close()
 }
 

@@ -99,7 +99,7 @@ export function ModuleView(props: ModuleViewProps) {
         <p className="mb-1 text-xs font-semibold text-muted-foreground">
           Live filters (mirrors the URL)
         </p>
-        <pre className="text-xs">{JSON.stringify(filters, null, 2)}</pre>
+        <pre className="text-xs" data-testid="module-filters">{JSON.stringify(filters, null, 2)}</pre>
       </div>
 
       <div className="rounded border">

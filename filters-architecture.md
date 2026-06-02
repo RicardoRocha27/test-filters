@@ -405,6 +405,28 @@ Layered, from "free" to "explicit":
 No detail-page reset trap: there is no module-change reset to trap, so the old
 UUID-regex workaround is unnecessary.
 
+### Sharing vs isolating filter state across pages
+
+Whether a filter is shared or isolated across pages is decided by **which hook a
+page calls** — there is no separate mechanism:
+
+- **Shared dimension** (e.g. a global date range across an analytics section):
+  the related pages call the **same** module hook (same `prefix`) → they read/write
+  the same URL keys. Give it `persist: "session"` + a `scope` spanning the pages,
+  and the snapshot reseeds it across a bare `<Link>`. Optional, to avoid a
+  first-frame empty fetch: carry it explicitly in the link with the module's
+  `serialize(path, filters)` (the two-arg overload amends the target's query) — it
+  emits only that module's keys, so nothing page-specific tags along.
+- **Isolated, even with the same key name** (e.g. a parent table and a child page
+  that both have `search`): give each its **own** hook/`prefix`. `aan_search` and
+  `cad_search` are different URL keys, so they never bleed. Switching between
+  entities of the *same* module (same hook, different `scope`) is isolated too —
+  the rescope loads that entity's snapshot.
+
+**Rule of thumb: same hook = shared, different hook = isolated.** The reference's
+`scripts/e2e.mjs` asserts both (scenarios 7 and 8: a date range carried parent→child,
+and a same-named `search` that stays independent).
+
 ---
 
 ## 11. Handling invalid or out-of-range URL values
