@@ -12,12 +12,37 @@ export type Row = {
 }
 
 const NAMES = [
-  "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel",
-  "India", "Juliet", "Kilo", "Lima", "Mike", "November", "Oscar", "Papa",
-  "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "Xray",
+  "Alpha",
+  "Bravo",
+  "Charlie",
+  "Delta",
+  "Echo",
+  "Foxtrot",
+  "Golf",
+  "Hotel",
+  "India",
+  "Juliet",
+  "Kilo",
+  "Lima",
+  "Mike",
+  "November",
+  "Oscar",
+  "Papa",
+  "Quebec",
+  "Romeo",
+  "Sierra",
+  "Tango",
+  "Uniform",
+  "Victor",
+  "Whiskey",
+  "Xray",
 ]
 
-function seededRows(resource: string, scopeId: string, categories: string[]): Row[] {
+function seededRows(
+  resource: string,
+  scopeId: string,
+  categories: string[]
+): Row[] {
   // Deterministic: the same resource+scope always yields the same dataset,
   // and different scopes (entities) yield visibly different data.
   const seedChar = (scopeId.charCodeAt(0) || 65) % NAMES.length
@@ -27,7 +52,11 @@ function seededRows(resource: string, scopeId: string, categories: string[]): Ro
       id: `${resource}-${scopeId}-${i}`,
       name: `${NAMES[idx]} ${resource} (${scopeId})`,
       category: categories[(i + seedChar) % categories.length],
-      createdAt: new Date(2024, 0, 1 + ((i * 7 + seedChar) % 300)).toISOString(),
+      createdAt: new Date(
+        2024,
+        0,
+        1 + ((i * 7 + seedChar) % 300)
+      ).toISOString(),
     }
   })
 }
@@ -37,8 +66,10 @@ export type ListParams = {
   size: number
   search: string
   orderBy: string
-  /** Optional category filter (role / status / metric in the demo modules). */
+  /** Optional single-value category filter (status / metric in the demo modules). */
   category?: string
+  /** Optional multi-value category filter (roles[] in the admin demo). */
+  categoryIn?: string[]
 }
 
 export type ListResult = { items: Row[]; total: number }
@@ -62,11 +93,16 @@ export async function fakeList(args: {
   if (params.category) {
     rows = rows.filter((r) => r.category === params.category)
   }
+  if (params.categoryIn?.length) {
+    rows = rows.filter((r) => params.categoryIn!.includes(r.category))
+  }
   if (params.orderBy) {
     rows = [...rows].sort((a, b) => {
       if (params.orderBy === "name") return a.name.localeCompare(b.name)
-      if (params.orderBy === "createdAt") return a.createdAt.localeCompare(b.createdAt)
-      if (params.orderBy === "category") return a.category.localeCompare(b.category)
+      if (params.orderBy === "createdAt")
+        return a.createdAt.localeCompare(b.createdAt)
+      if (params.orderBy === "category")
+        return a.category.localeCompare(b.category)
       return 0
     })
   }

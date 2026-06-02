@@ -1,4 +1,4 @@
-import { parseAsStringEnum } from "nuqs"
+import { parseAsArrayOf, parseAsStringEnum } from "nuqs"
 
 import {
   createModuleFilters,
@@ -13,8 +13,9 @@ const base = createModuleFilters({
   persist: "session",
   parsers: {
     ...tableFilters,
-    // Invalid values (`role=wizard`) parse to null => treated as "all".
-    role: parseAsStringEnum(ROLE_OPTIONS),
+    // Multi-select. Invalid members (`roles=admin,wizard`) are dropped at parse
+    // time => ["admin"]; `?roles=` / all-invalid => [] (Layer 1 for arrays).
+    roles: parseAsArrayOf(parseAsStringEnum(ROLE_OPTIONS)).withDefault([]),
   },
 })
 

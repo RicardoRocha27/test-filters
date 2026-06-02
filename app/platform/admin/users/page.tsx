@@ -18,11 +18,11 @@ export default function AdminUsersPage() {
         { value: "createdAt", label: "Created" },
       ]}
       onOrderBy={t.onOrderBy}
-      category={{
-        label: "Role",
-        value: t.category,
+      multiCategory={{
+        label: "Roles",
+        values: t.roles,
         options: t.roleOptions.map((r) => ({ value: r, label: r })),
-        onChange: t.onCategory,
+        onToggle: t.onToggleMulti,
       }}
       page={t.page}
       size={t.size}

@@ -17,8 +17,20 @@ export type ModuleViewProps = {
   orderBy: string
   orderByOptions: Option[]
   onOrderBy: (v: string) => void
-  /** Optional module-specific filter (role / status / metric). */
-  category?: { label: string; value: string; options: Option[]; onChange: (v: string) => void }
+  /** Optional single-select module filter (status / metric). */
+  category?: {
+    label: string
+    value: string
+    options: Option[]
+    onChange: (v: string) => void
+  }
+  /** Optional multi-select module filter (roles[]). */
+  multiCategory?: {
+    label: string
+    values: string[]
+    options: Option[]
+    onToggle: (v: string) => void
+  }
   page: number
   total: number
   size: number
@@ -33,8 +45,25 @@ export type ModuleViewProps = {
 
 export function ModuleView(props: ModuleViewProps) {
   const {
-    title, scope, filters, search, onSearch, orderBy, orderByOptions, onOrderBy,
-    category, page, total, size, onPrev, onNext, isFetching, rows, onClear, footer,
+    title,
+    scope,
+    filters,
+    search,
+    onSearch,
+    orderBy,
+    orderByOptions,
+    onOrderBy,
+    category,
+    multiCategory,
+    page,
+    total,
+    size,
+    onPrev,
+    onNext,
+    isFetching,
+    rows,
+    onClear,
+    footer,
   } = props
 
   const maxPage = Math.max(1, Math.ceil(total / size))
@@ -48,7 +77,9 @@ export function ModuleView(props: ModuleViewProps) {
             {scope.label}: <b>{scope.value}</b>
           </span>
         )}
-        {isFetching && <span className="text-xs text-muted-foreground">fetching…</span>}
+        {isFetching && (
+          <span className="text-xs text-muted-foreground">fetching…</span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -71,7 +102,9 @@ export function ModuleView(props: ModuleViewProps) {
           >
             <option value="">—</option>
             {orderByOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </label>
@@ -86,31 +119,64 @@ export function ModuleView(props: ModuleViewProps) {
             >
               <option value="">all</option>
               {category.options.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </label>
         )}
 
-        <Button variant="outline" onClick={onClear}>Clear filters</Button>
+        {multiCategory && (
+          <fieldset className="flex flex-col gap-1 text-sm">
+            <legend className="mb-1">{multiCategory.label}</legend>
+            <div className="flex gap-3">
+              {multiCategory.options.map((o) => (
+                <label
+                  key={o.value}
+                  className="flex items-center gap-1"
+                  data-testid={`multi-${o.value}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={multiCategory.values.includes(o.value)}
+                    onChange={() => multiCategory.onToggle(o.value)}
+                  />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        <Button variant="outline" onClick={onClear}>
+          Clear filters
+        </Button>
       </div>
 
       <div className="rounded border p-3">
         <p className="mb-1 text-xs font-semibold text-muted-foreground">
           Live filters (mirrors the URL)
         </p>
-        <pre className="text-xs" data-testid="module-filters">{JSON.stringify(filters, null, 2)}</pre>
+        <pre className="text-xs" data-testid="module-filters">
+          {JSON.stringify(filters, null, 2)}
+        </pre>
       </div>
 
       <div className="rounded border">
         <div className="grid grid-cols-[1fr_8rem_12rem] gap-2 border-b p-2 text-xs font-semibold">
-          <span>Name</span><span>Category</span><span>Created</span>
+          <span>Name</span>
+          <span>Category</span>
+          <span>Created</span>
         </div>
         {rows.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground">No results</div>
         )}
         {rows.map((r) => (
-          <div key={r.id} className="grid grid-cols-[1fr_8rem_12rem] gap-2 border-b p-2 text-sm last:border-b-0">
+          <div
+            key={r.id}
+            className="grid grid-cols-[1fr_8rem_12rem] gap-2 border-b p-2 text-sm last:border-b-0"
+          >
             <span>{r.name}</span>
             <span>{r.category}</span>
             <span>{new Date(r.createdAt).toLocaleDateString()}</span>
@@ -119,9 +185,15 @@ export function ModuleView(props: ModuleViewProps) {
       </div>
 
       <div className="flex items-center gap-3 text-sm">
-        <Button variant="outline" onClick={onPrev} disabled={page <= 1}>Prev</Button>
-        <span>Page {page} / {maxPage} · {total} rows</span>
-        <Button variant="outline" onClick={onNext} disabled={page >= maxPage}>Next</Button>
+        <Button variant="outline" onClick={onPrev} disabled={page <= 1}>
+          Prev
+        </Button>
+        <span>
+          Page {page} / {maxPage} · {total} rows
+        </span>
+        <Button variant="outline" onClick={onNext} disabled={page >= maxPage}>
+          Next
+        </Button>
       </div>
 
       {footer && <div className="border-t pt-3">{footer}</div>}

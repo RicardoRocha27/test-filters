@@ -6,7 +6,12 @@ import { useQuery } from "@tanstack/react-query"
 import { fakeList, type ListParams } from "./fake-api"
 import { useDebounce } from "./use-debounce"
 
-type CommonFilters = { page: number; size: number; search: string; orderBy: string }
+type CommonFilters = {
+  page: number
+  size: number
+  search: string
+  orderBy: string
+}
 
 /**
  * Turns a module's filter state into a React Query result + ready-made handlers.
@@ -21,13 +26,26 @@ export function useTableController(args: {
   resource: string
   scopeId?: string | null
   categories: string[]
-  categoryKey: string
-  category: string
   filters: CommonFilters
   setFilters: (v: Record<string, unknown>) => void
   reset: () => void
+  /** Single-select category filter (status / metric). */
+  categoryKey?: string
+  category?: string
+  /** Multi-select category filter (roles[]). */
+  multi?: { key: string; values: string[] }
 }) {
-  const { resource, scopeId, categories, categoryKey, category, filters, setFilters, reset } = args
+  const {
+    resource,
+    scopeId,
+    categories,
+    categoryKey,
+    category,
+    multi,
+    filters,
+    setFilters,
+    reset,
+  } = args
 
   const debouncedSearch = useDebounce(filters.search, 300)
 
@@ -37,6 +55,7 @@ export function useTableController(args: {
     orderBy: filters.orderBy,
     search: debouncedSearch,
     category: category || undefined,
+    categoryIn: multi?.values.length ? multi.values : undefined,
   }
 
   const { data, isFetching } = useQuery({
@@ -65,11 +84,20 @@ export function useTableController(args: {
     size: filters.size,
     search: filters.search,
     orderBy: filters.orderBy,
-    category,
+    category: category ?? "",
     // Changing a filter resets pagination (page: null -> default 1).
     onSearch: (v: string) => setFilters({ search: v || null, page: null }),
     onOrderBy: (v: string) => setFilters({ orderBy: v || null, page: null }),
-    onCategory: (v: string) => setFilters({ [categoryKey]: v || null, page: null }),
+    onCategory: (v: string) =>
+      categoryKey && setFilters({ [categoryKey]: v || null, page: null }),
+    // Toggle a value in the multi-select array; empty -> null (clearOnDefault drops it).
+    onToggleMulti: (v: string) => {
+      if (!multi) return
+      const next = multi.values.includes(v)
+        ? multi.values.filter((x) => x !== v)
+        : [...multi.values, v]
+      setFilters({ [multi.key]: next.length ? next : null, page: null })
+    },
     onPrev: () => setFilters({ page: Math.max(1, filters.page - 1) }),
     onNext: () => setFilters({ page: filters.page + 1 }),
     reset,

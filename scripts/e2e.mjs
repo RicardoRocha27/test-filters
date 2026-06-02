@@ -152,15 +152,15 @@ const readFilters = async (page) =>
   console.log("\n[5] invalid value in URL is sanitized at parse time")
   const { ctx, page } = await fresh()
   await page.goto(
-    `${BASE}/platform/admin/users?adminUsers_role=wizard&adminUsers_page=abc`
+    `${BASE}/platform/admin/users?adminUsers_roles=admin,wizard&adminUsers_page=abc`
   )
   await waitForRows(page)
   await page.waitForTimeout(300)
   const f = await readFilters(page)
   check(
-    "role 'wizard' -> null (treated as all)",
-    f.role === null,
-    `role=${JSON.stringify(f.role)}`
+    "array: invalid member 'wizard' dropped -> ['admin']",
+    JSON.stringify(f.roles) === JSON.stringify(["admin"]),
+    `roles=${JSON.stringify(f.roles)}`
   )
   check("page 'abc' -> 1 (shape-valid)", f.page === 1, `page=${f.page}`)
   await ctx.close()
@@ -268,6 +268,135 @@ const readFilters = async (page) =>
     "child's 'xyz' did NOT leak to parent",
     !page.url().includes("cad_search"),
     page.url().replace(BASE, "")
+  )
+  await ctx.close()
+}
+
+// 9) Deep-link wins over the snapshot (URL is authoritative on mount)
+{
+  console.log("\n[9] deep-link value wins over the session snapshot")
+  const { ctx, page } = await fresh()
+  // Prime the snapshot with search "aaa".
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.getByPlaceholder("filter by name").fill("aaa")
+  await page.waitForTimeout(400)
+  // Now deep-link a DIFFERENT value; the URL must win, not the snapshot.
+  // (Don't waitForRows — "zzz" matches nothing; we only need the page mounted.)
+  await page.goto(
+    `${BASE}/platform/agents/agent-1/analytics?agentAnalytics_search=zzz`
+  )
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await page.waitForTimeout(700)
+  const f = await readFilters(page)
+  check(
+    "URL 'zzz' wins over snapshot 'aaa'",
+    f.search === "zzz",
+    `search=${JSON.stringify(f.search)}`
+  )
+  await ctx.close()
+}
+
+// 10) A SHARED dimension is still scoped per entity (not global)
+{
+  console.log("\n[10] shared date range is scoped per entity")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.getByRole("button", { name: "Set sample range" }).click()
+  await page.waitForTimeout(400)
+  // Switch to agent-2 — must NOT inherit agent-1's date.
+  await page.goto(`${BASE}/platform/agents/agent-2/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.waitForTimeout(500)
+  const d2 = await page.getByTestId("shared-dates").textContent()
+  check(
+    "agent-2 has no date (scoped)",
+    d2.includes('"startDate": null'),
+    d2.replace(/\s+/g, " ").trim()
+  )
+  // Back to agent-1 — date restored.
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.waitForTimeout(500)
+  const d1 = await page.getByTestId("shared-dates").textContent()
+  check("agent-1 date restored", d1.includes("2025-01-01"))
+  await ctx.close()
+}
+
+// 11) Two namespaces live on ONE page don't clobber each other
+{
+  console.log(
+    "\n[11] same-page namespaces are independent (adr vs agentAnalytics)"
+  )
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.getByRole("button", { name: "Set sample range" }).click()
+  await page.getByPlaceholder("filter by name").fill("abc")
+  await page.waitForTimeout(400)
+  check(
+    "both namespaces in URL",
+    page.url().includes("adr_startDate") &&
+      page.url().includes("agentAnalytics_search=abc"),
+    page.url().replace(BASE, "")
+  )
+  // Change search -> date untouched.
+  await page.getByPlaceholder("filter by name").fill("xyz")
+  await page.waitForTimeout(400)
+  check(
+    "changing search leaves the date",
+    page.url().includes("adr_startDate") &&
+      page.url().includes("agentAnalytics_search=xyz"),
+    page.url().replace(BASE, "")
+  )
+  // Clear the date -> search untouched.
+  await page.getByRole("button", { name: "Clear dates" }).click()
+  await page.waitForTimeout(400)
+  check(
+    "clearing the date leaves the search",
+    !page.url().includes("adr_") &&
+      page.url().includes("agentAnalytics_search=xyz"),
+    page.url().replace(BASE, "")
+  )
+  await ctx.close()
+}
+
+// 12) Array multi-select: live round-trip through the URL
+{
+  console.log("\n[12] array multi-select round-trips through the URL")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/admin/users`)
+  await waitForRows(page)
+  await page.getByTestId("multi-admin").click()
+  await page.getByTestId("multi-editor").click()
+  await page.waitForTimeout(400)
+  check(
+    "URL has roles=admin,editor",
+    /adminUsers_roles=admin%2Ceditor|adminUsers_roles=admin,editor/.test(
+      page.url()
+    ),
+    page.url().replace(BASE, "")
+  )
+  const f = await readFilters(page)
+  check(
+    "filters.roles === ['admin','editor']",
+    JSON.stringify(f.roles) === JSON.stringify(["admin", "editor"]),
+    `roles=${JSON.stringify(f.roles)}`
+  )
+  // Untick one -> array updates.
+  await page.getByTestId("multi-admin").click()
+  await page.waitForTimeout(400)
+  const f2 = await readFilters(page)
+  check(
+    "untick admin -> ['editor']",
+    JSON.stringify(f2.roles) === JSON.stringify(["editor"]),
+    `roles=${JSON.stringify(f2.roles)}`
   )
   await ctx.close()
 }

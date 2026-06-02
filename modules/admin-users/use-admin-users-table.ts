@@ -10,12 +10,16 @@ export function useAdminUsersTable() {
   const controller = useTableController({
     resource: "users",
     categories: ROLE_OPTIONS,
-    categoryKey: "role",
-    category: filters.role ?? "",
+    multi: { key: "roles", values: filters.roles },
     filters,
     setFilters: setFilters as (v: Record<string, unknown>) => void,
     reset,
   })
 
-  return { ...controller, filters, roleOptions: ROLE_OPTIONS }
+  return {
+    ...controller,
+    filters,
+    roleOptions: ROLE_OPTIONS,
+    roles: filters.roles,
+  }
 }
