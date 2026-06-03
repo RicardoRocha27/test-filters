@@ -131,7 +131,7 @@ seed check meaningful.
 
 ### 4.1 Implementation gotchas (verified the hard way)
 
-Two non-obvious things make or break this in practice — both are handled in
+Three non-obvious things make or break this in practice — all handled in
 `lib/filters/use-filter-snapshot.ts`:
 
 1. **Defer the restore to a microtask.** Calling nuqs's `setFilters` _synchronously_
@@ -149,10 +149,21 @@ Two non-obvious things make or break this in practice — both are handled in
    clobbering. A one-shot "suppress next write" flag is _not_ enough — Strict Mode
    fires a second write that slips through.
 
+3. **Decide "is the URL bare?" from the real URL, not parsed state.** The
+   seed-vs-deep-link decision reads `window.location.search` for the module's
+   namespaced keys — never `qs`/`filters`. Deriving it from parsed state couples a
+   correctness decision to nuqs's parse _timing_: if a future upgrade deferred
+   hydration a tick, `filters` would be defaults at effect time, a deep link would
+   read as "bare", and the snapshot would silently overwrite the link you were
+   sent — a shareability regression that no test catches until the upgrade. Reading
+   the URL removes the coupling entirely.
+
 > Regression coverage: `scripts/e2e.mjs` drives a real browser (Playwright) through
-> in-app back, browser back, entity rescope, and cross-module isolation, asserting
-> the URL and the rendered table page always agree. Run it against `next dev`
-> (Strict Mode) — that's where these bugs surface.
+> in-app back, browser back, entity rescope, cross-module isolation, shared vs
+> isolated filters, the validation layers, and a **rich multi-namespace deep link
+> that must beat primed snapshots** (scenario 13 — the shareability tripwire),
+> asserting URL and rendered state always agree. Run it against `next dev` (Strict
+> Mode) — that's where these bugs surface.
 
 ---
 

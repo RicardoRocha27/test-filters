@@ -116,6 +116,14 @@ current per-entity `localStorage` causes.
 3. **Three-state `scopeId`:** `undefined` = unscoped page, `null` = scoped but not
    ready (entity still loading), `string` = ready. While `null`, the snapshot
    *waits* — so `useEntity().isLoading` flicker can't trigger a stray reset.
+4. **Decide "is the URL bare?" from the actual URL, not `filters`.** The seed-vs-
+   deep-link choice reads `window.location.search` for this module's namespaced
+   keys — *not* `qs`/`filters`. Deriving it from parsed state would couple
+   correctness to nuqs's parse *timing*: if an upgrade deferred hydration a tick,
+   a shared deep link would momentarily look "bare" and get overwritten by stale
+   session state — a silent shareability regression. Reading the URL removes the
+   coupling. Guarded by e2e scenario 13 (a rich multi-namespace deep link must beat
+   primed snapshots).
 
 ---
 

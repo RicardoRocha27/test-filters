@@ -401,6 +401,40 @@ const readFilters = async (page) =>
   await ctx.close()
 }
 
+// 13) Rich multi-namespace deep link wins over PRIMED snapshots (shareability)
+//     Guards the timing-coupling regression: a shared link with many filters
+//     across namespaces must render exactly what was sent, never stale session state.
+{
+  console.log("\n[13] big multi-namespace deep link beats primed snapshots")
+  const { ctx, page } = await fresh()
+
+  // Prime stale snapshots for agent-1: search "aaa" + a 2025 date range.
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.getByPlaceholder("filter by name").fill("aaa")
+  await page.getByRole("button", { name: "Set sample range" }).click() // adr = 2025-01-01
+  await page.waitForTimeout(400)
+
+  // Now open a rich deep link with DIFFERENT values across both namespaces.
+  const deep =
+    `${BASE}/platform/agents/agent-1/analytics` +
+    `?agentAnalytics_page=2&agentAnalytics_search=agent&agentAnalytics_orderBy=createdAt` +
+    `&adr_startDate=2024-06-01T00:00:00.000Z&adr_endDate=2024-09-01T00:00:00.000Z`
+  await page.goto(deep)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.waitForTimeout(700)
+
+  const f = await readFilters(page)
+  check("search = link's 'agent' (not snapshot 'aaa')", f.search === "agent", `search=${JSON.stringify(f.search)}`)
+  check("orderBy = link's 'createdAt'", f.orderBy === "createdAt", `orderBy=${JSON.stringify(f.orderBy)}`)
+  check("page = link's 2", f.page === 2, `page=${f.page}`)
+  const dates = await page.getByTestId("shared-dates").textContent()
+  check("date = link's 2024-06 (not snapshot 2025-01)", dates.includes("2024-06-01") && !dates.includes("2025-01-01"), dates.replace(/\s+/g, " ").trim())
+  await ctx.close()
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS ✓" : `${failures} FAILURE(S) ✗`}`)
 await browser.close()
 process.exit(failures === 0 ? 0 : 1)

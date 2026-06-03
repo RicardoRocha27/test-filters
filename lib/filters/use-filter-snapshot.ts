@@ -1,12 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import type { ParserMap } from "nuqs"
 
 type SerializeFn = (values: Record<string, unknown>) => string
 type LoadFn = (input: string) => Record<string, unknown>
 
-type Args<P extends ParserMap> = {
+type Args = {
   /** Whether session persistence is enabled (persist: "session"). */
   enabled: boolean
   /** Namespace, e.g. "agentAnalytics". */
@@ -20,8 +19,12 @@ type Args<P extends ParserMap> = {
    *  - `string`    => scoped and ready.
    */
   scopeId: string | null | undefined
-  /** Internal filter keys (kept for parity with the factory; reset uses nulls). */
-  keys: (keyof P)[]
+  /**
+   * This module's namespaced URL keys (e.g. ["agentAnalytics_page", …]). Used to
+   * detect a deep link by reading the *actual URL*, so the seed-vs-deep-link
+   * decision never depends on when nuqs parses the URL into `filters`.
+   */
+  namespacedKeys: string[]
   /** Current filter values from useQueryStates. */
   filters: Record<string, unknown>
   /** Setter from useQueryStates. */
@@ -47,6 +50,11 @@ type Args<P extends ParserMap> = {
  *  - Reset (handled by the factory)  -> clears URL; snapshot empties on next write.
  *
  * Robustness notes:
+ *  - The "is the URL bare?" decision reads the ACTUAL URL (`window.location`),
+ *    not `filters`/`qs`. `filters` reflects the URL only once nuqs has parsed it;
+ *    deriving the decision from it would couple correctness to parse *timing*, so
+ *    a future upgrade that deferred hydration could make a deep link look "bare"
+ *    and get clobbered by the snapshot. Reading the URL removes that coupling.
  *  - Restores are deferred to a microtask so nuqs is fully initialized before we
  *    call its setter (calling it synchronously inside the mount effect races with
  *    nuqs's own URL read and silently no-ops the state update).
@@ -54,15 +62,16 @@ type Args<P extends ParserMap> = {
  *    the write-through never clobbers the snapshot during the transient bare
  *    state — and tolerates React Strict Mode double-firing effects in dev.
  */
-export function useFilterSnapshot<P extends ParserMap>({
+export function useFilterSnapshot({
   enabled,
   prefix,
   scopeId,
+  namespacedKeys,
   filters,
   setFilters,
   serialize,
   load,
-}: Args<P>) {
+}: Args) {
   const storageKey = `filters:${prefix}:${scopeId ?? "_"}`
 
   // Serialize from values (synchronous, race-free, respects clearOnDefault).
@@ -93,8 +102,17 @@ export function useFilterSnapshot<P extends ParserMap>({
 
     if (isFirst) {
       // Initial mount: the URL wins when present (deep link / back button).
-      // qs === "" means the URL is bare, so seed from the snapshot.
-      if (qs === "" && snap) {
+      // Read the ACTUAL URL — NOT `qs`/`filters` — so this decision can't be
+      // fooled by nuqs deferring its parse (which would make a deep link look
+      // bare and get overwritten by the snapshot).
+      let urlIsBare = true
+      try {
+        const sp = new URLSearchParams(window.location.search)
+        urlIsBare = !namespacedKeys.some((k) => sp.has(k))
+      } catch {
+        urlIsBare = true
+      }
+      if (urlIsBare && snap) {
         pendingRestore.current = snap
         queueMicrotask(() => setFilters(load(snap!)))
       }

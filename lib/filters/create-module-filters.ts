@@ -56,11 +56,13 @@ export function createModuleFilters<P extends ParserMap>(
       ...options,
     })
 
-    useFilterSnapshot<P>({
+    useFilterSnapshot({
       enabled: persist === "session",
       prefix,
       scopeId,
-      keys: Object.keys(parsers) as (keyof P)[],
+      // The actual namespaced URL keys — used to detect a deep link from the
+      // real URL, independent of when nuqs parses it into `filters`.
+      namespacedKeys: Object.values(urlKeys) as string[],
       filters: filters as Record<string, unknown>,
       setFilters: setFilters as unknown as (v: Record<string, unknown>) => void,
       serialize: serialize as unknown as (v: Record<string, unknown>) => string,
