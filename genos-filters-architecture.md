@@ -508,13 +508,24 @@ value is always ISO.
 
 Several existing pages have a table **and** a quick-filter component **and** an
 export button all reading the same filters (e.g. workflow-executions). With the
-URL as the store this "just works" — each is a consumer of the same module hook.
+URL as the store this "just works" — **call the same module hook wherever you need
+it.** No "owner" component to designate, no second variant.
 
-Caveat: each component that calls `useExecutionsFilters()` runs its own copy of the
-snapshot effect (React runs a hook per call site). It's idempotent, so it's safe.
-If you want a single owner, hoist the hook into the page/owner and pass values
-down, or add a read-only `useFiltersValue()` (just `useQueryStates`, no snapshot)
-for the secondary consumers. Don't build that split until you need it.
+Why it's safe to call the same hook from many co-mounted components: nuqs syncs
+every `useQueryStates` instance on the same keys, so `filters` is identical across
+all of them each render. The snapshot effect is **idempotent** — N instances read
+the same snapshot, schedule the same `setFilters`, and write the same value to the
+same key; they converge, nothing clobbers. The only cost is a little redundant work
+(a couple extra `sessionStorage` writes), negligible at realistic scale.
+
+> Verified: the reference's analytics page calls `useAnalyticsDateRange()` twice
+> (page body + `DateRangeBar`), i.e. two co-mounted snapshot instances, and the
+> shared-dimension e2e scenarios pass in dev (Strict Mode).
+
+Optional optimization (not required): if a page ever has *many* consumers and you
+want to skip the redundant writes, hoist the hook into the page and pass values
+down. Don't reach for a read-only/owner split — it reintroduces a footgun (forget
+the "owner" and persistence silently stops).
 
 The **export** action should build its params from the same `filters` object the
 table uses — never a second source.

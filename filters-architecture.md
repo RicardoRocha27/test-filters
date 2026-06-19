@@ -248,12 +248,13 @@ export function createModuleFilters<P extends Record<string, ParserBuilder<any>>
 }
 ```
 
-> **One snapshot owner per page.** Each component that calls a module's filter hook
-> runs its own copy of the snapshot effect (React executes a hook per call site).
-> They're idempotent, so it's safe — but if two components on the same page need
-> the same module's filters, either hoist the hook into the owner and pass values
-> down, or add a read-only `useFiltersValue()` (just `useQueryStates`, no snapshot)
-> for the extra consumers. Don't build that split until you actually need it.
+> **Call the same hook wherever you need it.** Many co-mounted components can call
+> the same module hook — no "owner" to designate. nuqs syncs every `useQueryStates`
+> instance on the same keys, so `filters` is identical across them, and the snapshot
+> effect is idempotent (all instances read/write the same snapshot and converge).
+> The only cost is a little redundant work. If a page ever has *many* consumers and
+> you want to skip the extra writes, hoist the hook and pass values down — but avoid
+> an owner/read-only split: forgetting the owner silently disables persistence.
 
 ### Reusable parsers
 
