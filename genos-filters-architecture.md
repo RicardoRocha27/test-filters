@@ -95,26 +95,42 @@ Rules the factory encapsulates:
 
 | Trigger | URL has params? | Action |
 | --- | --- | --- |
-| Initial mount | yes (deep link / browser back) | URL wins — do nothing |
-| Initial mount | no (bare URL) | seed from `filters:{prefix}:{entityId}` |
-| Entity changed | — | replace URL with new entity's snapshot (or clear) |
+| Initial mount, URL has params | — | URL wins — do nothing |
+| Mount via **in-app nav**, bare URL | — | seed from `filters:{prefix}:{entityId}` |
+| Mount via **hard load**, bare URL | reload / typed / cleared / direct link | URL wins — stay bare; drop the stale snapshot |
+| Entity changed (in-app) | — | replace URL with new entity's snapshot (or clear) |
 | Reset / "clear all" | — | clear URL **and** drop the snapshot |
 
-### Clear-forgets vs. navigate-restores (the load-bearing distinction)
+### How a bare URL is resolved (the load-bearing distinction)
 
-"I cleared everything" and "I navigated to the bare page" both produce the same
-empty URL — they're told apart by **whether a snapshot still exists**:
+A bare URL can be reached three ways, and they must behave differently. The
+snapshot tells them apart by **how you arrived** + **whether a snapshot exists**:
 
-- **Clear** → `reset()` empties the filters **and explicitly drops the snapshot**.
-  There's nothing left to restore, so the page stays empty even after you navigate
-  away and back. (Verified: e2e scenario 14.)
-- **Navigate back** to the bare page (nav link, in-app back) → the snapshot was
-  kept, so filters **restore**. (Verified: e2e scenario 1.)
+| You reached the bare page by… | Behavior | Why |
+| --- | --- | --- |
+| **In-app navigation** (Link, back-to-list, browser back) | **restore** filters | the feature — you're returning to a view you had |
+| **Hard load** (reload, typed/edited URL, direct/bookmarked link) | **URL wins** — stay bare | the URL is authoritative on load; also drops the stale snapshot |
+| **Explicit clear** (`reset()`) | **stay empty, forever** | reset drops the snapshot, so nothing restores |
 
-**The one rule this depends on:** a "Clear" affordance must empty state **through
-the hook** (`reset()` / `setFilters`), **never** by navigating to a bare URL.
-Navigating *to* a bare URL means "I'm arriving" → restore; only a state mutation
-means "forget this" → drop. Same destination, opposite intent.
+Two mechanisms implement this:
+
+1. **Soft-nav gate.** A root-mounted watcher flips a module flag the first time the
+   client `pathname` changes. The seed restores a bare URL **only when that flag is
+   set** (i.e. we got here via in-app navigation). A fresh document load starts with
+   the flag false → the URL wins. (Verified: scenario 15 — load filtered, hard-load
+   bare → stays bare; scenarios 1/3/10 — in-app nav → restores.)
+2. **Clear drops the snapshot.** `reset()` empties the URL **and** explicitly
+   removes the snapshot, so a cleared page stays cleared across navigation.
+   (Verified: scenario 14.)
+
+**The one rule for the team:** a "Clear" affordance must empty state **through the
+hook** (`reset()` / `setFilters`), never by navigating to a bare URL. (Navigating
+*to* a bare URL via an in-app link means "I'm returning" → restore.)
+
+> Consequence to know: this makes a bare URL on a **hard load / reload** stay bare —
+> the URL is genuinely the source of truth on load. A *filtered* URL always keeps
+> its filters (the URL has params). Restore happens only for in-app navigation,
+> which is the actual product requirement (`router.back()` is unavailable here).
 
 We use **`sessionStorage`** (not `localStorage`) for navigational stickiness, so a
 fresh tab/visit starts clean — fixing the "filters feel stuck" behaviour the
@@ -140,6 +156,13 @@ current per-entity `localStorage` causes.
    session state — a silent shareability regression. Reading the URL removes the
    coupling. Guarded by e2e scenario 13 (a rich multi-namespace deep link must beat
    primed snapshots).
+5. **Restore only on in-app navigation (soft-nav gate).** A bare URL is seeded from
+   the snapshot **only** when a client-side navigation has occurred this document
+   session (a root watcher flips a module flag on the first `pathname` change). A
+   fresh document load (reload / typed / cleared URL) keeps the flag false → the URL
+   wins and a bare page stays bare. This makes the URL authoritative on load and
+   fixes "can't delete the last filter from the URL". Guarded by scenarios 15
+   (hard-load bare stays bare) and 1/3/10 (in-app nav restores).
 
 ---
 

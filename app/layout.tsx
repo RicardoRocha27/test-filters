@@ -6,6 +6,7 @@ import { Suspense } from "react"
 import { cn } from "@/lib/utils"
 import { QueryProvider } from "@/components/query-provider"
 import { UrlBar } from "@/components/demo/url-bar"
+import { SoftNavWatcher } from "@/lib/filters/soft-nav"
 import { NuqsAdapter } from "nuqs/adapters/next/app"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -36,6 +37,7 @@ export default function RootLayout({
           <QueryProvider>
             <NuqsAdapter>
               <Suspense fallback={null}>
+                <SoftNavWatcher />
                 <UrlBar />
               </Suspense>
               <main className="flex flex-col gap-6 p-6">{children}</main>

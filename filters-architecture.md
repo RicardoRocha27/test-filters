@@ -158,6 +158,15 @@ Three non-obvious things make or break this in practice — all handled in
    sent — a shareability regression that no test catches until the upgrade. Reading
    the URL removes the coupling entirely.
 
+4. **Restore a bare URL only on in-app navigation (soft-nav gate).** A root-mounted
+   watcher flips a module flag the first time the client `pathname` changes; the
+   seed restores a bare URL only when that flag is set. A fresh document load
+   (reload / typed / cleared URL) starts with it false → the URL wins and a bare
+   page stays bare (the write-through then drops the stale snapshot). This keeps the
+   URL authoritative on load — so "clear the URL" sticks and you can delete the last
+   filter — while still restoring on parent → child → back. Without it, seeding on
+   *any* bare mount means the last remaining filter can't be removed via the URL.
+
 > Regression coverage: `scripts/e2e.mjs` drives a real browser (Playwright) through
 > in-app back, browser back, entity rescope, cross-module isolation, shared vs
 > isolated filters, the validation layers, and a **rich multi-namespace deep link
@@ -409,10 +418,15 @@ Layered, from "free" to "explicit":
    URL (with namespaced filters) is in history. Back restores it, and React Query
    serves the cached list under that filter key → instant.
 2. **In-app "Back to list" links** (which don't carry params): the `sessionStorage`
-   seed restores the last view on a bare parent mount. Covers in-app links,
-   reloads, and bookmarks of the bare parent URL — _within the session_.
-3. **Deliberate fresh visit** (new tab, next day): starts clean, because it's
-   `sessionStorage`, not `localStorage`. This is the "not stuck" behaviour.
+   seed restores the last view on a bare parent mount — but **only because it was
+   reached by in-app navigation** (the soft-nav gate, §4.1). This is the case that
+   needs the snapshot.
+3. **Hard load of a bare URL** (reload, typed/edited URL, direct/bookmarked link):
+   **URL wins, stays bare** — the seed is gated to in-app navigation, so a fresh
+   load is authoritative (and a stale snapshot is dropped). This is what lets you
+   clear the URL / delete the last filter and have it stick.
+4. **Deliberate fresh visit** (new tab, next day): starts clean — `sessionStorage`
+   is per-tab, and (3) means even a same-tab bare reload doesn't resurrect.
 
 No detail-page reset trap: there is no module-change reset to trap, so the old
 UUID-regex workaround is unnecessary.

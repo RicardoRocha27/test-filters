@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef } from "react"
 
+import { hasSoftNavigated } from "./soft-nav"
+
 type SerializeFn = (values: Record<string, unknown>) => string
 type LoadFn = (input: string) => Record<string, unknown>
 
@@ -112,7 +114,10 @@ export function useFilterSnapshot({
       } catch {
         urlIsBare = true
       }
-      if (urlIsBare && snap) {
+      // Restore a bare URL ONLY when we arrived via in-app navigation. On a fresh
+      // document load (reload / typed / cleared URL) the URL is authoritative, so
+      // a bare URL stays bare — and the write-through then drops the stale snapshot.
+      if (urlIsBare && snap && hasSoftNavigated()) {
         pendingRestore.current = snap
         queueMicrotask(() => setFilters(load(snap!)))
       }

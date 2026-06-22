@@ -104,7 +104,8 @@ async function goPage2(page) {
   const { ctx, page } = await fresh()
   await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
   await goPage2(page) // agent-1 -> page 2
-  await page.goto(`${BASE}/platform/agents/agent-2/analytics`)
+  // Switch agents via the in-app nav links (soft navigation), like the real app.
+  await page.getByRole("link", { name: "agent-2 analytics" }).click()
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await page.waitForTimeout(800)
   let s = await read(page)
@@ -113,9 +114,10 @@ async function goPage2(page) {
     s.urlPage === 1 && s.filtersPage === 1,
     s.url
   )
-  // back to agent-1 -> should restore page 2
-  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  // back to agent-1 (soft nav) -> should restore page 2
+  await page.getByRole("link", { name: "agent-1 analytics" }).click()
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
   await page.waitForTimeout(800)
   s = await read(page)
   check(
@@ -307,8 +309,8 @@ const readFilters = async (page) =>
   await waitForRows(page)
   await page.getByRole("button", { name: "Set sample range" }).click()
   await page.waitForTimeout(400)
-  // Switch to agent-2 — must NOT inherit agent-1's date.
-  await page.goto(`${BASE}/platform/agents/agent-2/analytics`)
+  // Switch to agent-2 via the in-app nav link (soft) — must NOT inherit agent-1's date.
+  await page.getByRole("link", { name: "agent-2 analytics" }).click()
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await waitForRows(page)
   await page.waitForTimeout(500)
@@ -318,8 +320,8 @@ const readFilters = async (page) =>
     d2.includes('"startDate": null'),
     d2.replace(/\s+/g, " ").trim()
   )
-  // Back to agent-1 — date restored.
-  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  // Back to agent-1 (soft nav) — date restored.
+  await page.getByRole("link", { name: "agent-1 analytics" }).click()
   await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
   await waitForRows(page)
   await page.waitForTimeout(500)
@@ -457,6 +459,25 @@ const readFilters = async (page) =>
   await page.waitForTimeout(800)
   const s = await read(page)
   check("after clear + nav round-trip, still page 1 (not resurrected)", s.urlPage === 1 && s.filtersPage === 1, `${s.url} filters=${s.filtersPage}`)
+  await ctx.close()
+}
+
+// 15) Hard load of a bare URL is authoritative — does NOT restore (the manual-clear bug)
+{
+  console.log("\n[15] hard load / manual URL clear stays bare (URL wins)")
+  const { ctx, page } = await fresh()
+  // Land on a filtered page (writes the snapshot).
+  await page.goto(`${BASE}/platform/admin/users?adminUsers_orderBy=createdAt`)
+  await waitForRows(page)
+  check("filtered load: orderBy in URL", page.url().includes("adminUsers_orderBy=createdAt"), page.url().replace(BASE, ""))
+
+  // Simulate clearing the URL by hard-loading the bare page (fresh document load,
+  // like editing the address bar). Must NOT auto-restore orderBy.
+  await page.goto(`${BASE}/platform/admin/users`)
+  await waitForRows(page)
+  await page.waitForTimeout(500)
+  const f = await readFilters(page)
+  check("bare hard load stays bare (no resurrection)", !page.url().includes("adminUsers_orderBy") && f.orderBy === "", `${page.url().replace(BASE, "")} orderBy=${JSON.stringify(f.orderBy)}`)
   await ctx.close()
 }
 
