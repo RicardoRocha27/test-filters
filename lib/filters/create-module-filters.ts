@@ -71,10 +71,20 @@ export function createModuleFilters<P extends ParserMap>(
 
     const reset = useCallback(() => {
       // null resets each key to its default; clearOnDefault then empties the URL.
-      // The write-through effect sees the empty query string and drops the snapshot.
       const cleared = Object.fromEntries(Object.keys(parsers).map((k) => [k, null]))
       setFilters(cleared as Partial<Values>)
-    }, [setFilters])
+      // "Clear forgets": explicitly drop the snapshot so a later bare visit can't
+      // resurrect these filters. (The write-through also clears on empty, but doing
+      // it here makes the semantics guaranteed, independent of snapshot-hook timing.)
+      // Navigating to a bare URL does NOT call this — that path still restores.
+      if (persist === "session") {
+        try {
+          sessionStorage.removeItem(`filters:${prefix}:${scopeId ?? "_"}`)
+        } catch {
+          // sessionStorage unavailable — degrade silently.
+        }
+      }
+    }, [setFilters, scopeId])
 
     return { filters: filters as Values, setFilters, reset }
   }

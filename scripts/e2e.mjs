@@ -435,6 +435,31 @@ const readFilters = async (page) =>
   await ctx.close()
 }
 
+// 14) Clear FORGETS across navigation (but plain nav-back restores — scenario 1)
+{
+  console.log("\n[14] clear drops the snapshot; nav-back does NOT resurrect it")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await goPage2(page) // page 2 -> snapshot now holds page=2
+  check("set up: URL on page 2", page.url().includes("agentAnalytics_page=2"), page.url().replace(BASE, ""))
+
+  // Explicit clear (ModuleView "Clear filters" -> hook reset).
+  await page.getByRole("button", { name: "Clear filters" }).click()
+  await page.waitForTimeout(300)
+  check("clear empties the URL", !page.url().includes("agentAnalytics_page"), page.url().replace(BASE, ""))
+
+  // Navigate away and back to the BARE page — must stay cleared (no resurrection).
+  await page.getByRole("link", { name: /Open case detail/ }).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.getByRole("link", { name: /Back to analytics/ }).click()
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.waitForTimeout(800)
+  const s = await read(page)
+  check("after clear + nav round-trip, still page 1 (not resurrected)", s.urlPage === 1 && s.filtersPage === 1, `${s.url} filters=${s.filtersPage}`)
+  await ctx.close()
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS ✓" : `${failures} FAILURE(S) ✗`}`)
 await browser.close()
 process.exit(failures === 0 ? 0 : 1)

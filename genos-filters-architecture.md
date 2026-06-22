@@ -100,6 +100,22 @@ Rules the factory encapsulates:
 | Entity changed | — | replace URL with new entity's snapshot (or clear) |
 | Reset / "clear all" | — | clear URL **and** drop the snapshot |
 
+### Clear-forgets vs. navigate-restores (the load-bearing distinction)
+
+"I cleared everything" and "I navigated to the bare page" both produce the same
+empty URL — they're told apart by **whether a snapshot still exists**:
+
+- **Clear** → `reset()` empties the filters **and explicitly drops the snapshot**.
+  There's nothing left to restore, so the page stays empty even after you navigate
+  away and back. (Verified: e2e scenario 14.)
+- **Navigate back** to the bare page (nav link, in-app back) → the snapshot was
+  kept, so filters **restore**. (Verified: e2e scenario 1.)
+
+**The one rule this depends on:** a "Clear" affordance must empty state **through
+the hook** (`reset()` / `setFilters`), **never** by navigating to a bare URL.
+Navigating *to* a bare URL means "I'm arriving" → restore; only a state mutation
+means "forget this" → drop. Same destination, opposite intent.
+
 We use **`sessionStorage`** (not `localStorage`) for navigational stickiness, so a
 fresh tab/visit starts clean — fixing the "filters feel stuck" behaviour the
 current per-entity `localStorage` causes.
