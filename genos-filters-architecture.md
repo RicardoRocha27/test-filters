@@ -596,7 +596,117 @@ special mechanism to build:
 
 ---
 
-## 15. i18n
+## 15. Structuring a module's filters (shared / per-view / child)
+
+Filter state currently lives trapped inside `useXTable` via `useFiltersContext`.
+Pull the *definitions* into a colocated file, sibling to `types.ts`:
+
+```
+src/modules/<module>/
+  filters.ts                      # simple module (one list) — all hooks here
+  └─ or filters/                  # multi-view module (e.g. entity-issues)
+       shared.filters.ts          #   dimensions shared across parent + children
+       reported.filters.ts        #   the reported list's own filters
+       suggested.filters.ts       #   the suggested list's own filters
+  components/
+    <view>-table/use<View>Table.tsx          # consumes the view's hook + useAppQuery
+    <view>-quick-filters/use<View>QuickFilters.tsx   # consumes the SAME hook (co-mounted)
+  layouts/...                     # where <FiltersProvider> mounted — now deleted
+```
+
+`src/lib/filters/` (factory, snapshot, parsers, central `FILTER_PREFIXES`) is shared;
+modules only declare their own parser maps. Use `filters.ts` for a one-list module;
+promote to a `filters/` folder once a module has multiple views or a shared dimension.
+
+### The three categories → how each is declared
+
+Rule from §14: **same hook = shared, different prefix = isolated.** Mapped to files
+(using `entity-issues`, which has sibling lists + detail children):
+
+**1. Shared between parent and children** — one hook, scoped to the entity that
+spans them, called by every page in the section:
+
+```ts
+// modules/entity-issues/filters/shared.filters.ts
+const shared = createModuleFilters({
+  prefix: FILTER_PREFIXES.issuesShared, // "ish"
+  persist: "session",
+  parsers: { ...dateRange },            // a dimension the lists AND detail all use
+})
+export function useIssuesSharedFilters() {
+  const { currentEntity, isLoading } = useEntity()
+  return shared.useFilters(isLoading ? null : currentEntity?.id ?? null)
+}
+```
+
+The reported list, suggested list, and detail child all sit under the same
+`…/[workflowId]/issues/…` route, so `scopeId` is identical → snapshot bucket
+`filters:ish:{workflowId}` is shared. Set the date on a list, soft-nav into a
+detail, it's still there.
+
+**2. Per-view / parent-only (isolated)** — its own prefix, never shared with a sibling:
+
+```ts
+// modules/entity-issues/filters/reported.filters.ts
+const reported = createModuleFilters({
+  prefix: FILTER_PREFIXES.reportedIssues, // "ri" — distinct from suggested ("si")
+  persist: "session",
+  parsers: {
+    ...tableFilters,
+    status: parseAsArrayOf(parseAsStringEnum(Object.values(IssueStatus))).withDefault([]),
+  },
+})
+export function useReportedIssuesFilters() {
+  const { currentEntity, isLoading } = useEntity()
+  return reported.useFilters(isLoading ? null : currentEntity?.id ?? null)
+}
+```
+
+`suggested.filters.ts` is the same shape under prefix `si` — so reported's
+`status`/`search` and suggested's never collide despite the same key names.
+
+**3. Child-only** — a detail child with its own filters is just another isolated
+module, scoped to the child id:
+
+```ts
+// modules/entity-issues/filters/incidents.filters.ts — scoped to the issue id
+export function useIssueIncidentsFilters() {
+  const { id } = useParams<{ id: string }>()
+  return incidents.useFilters(id ?? null)
+}
+```
+
+### Consumers (matching the thin-component + `useXTable` convention)
+
+The table hook and the quick-filters hook both call the **same** view hook — the
+"call the same hook everywhere" pattern (§13), no owner/split:
+
+```ts
+// components/reported-issues-table/useEntityReportedIssuesTable.tsx
+const { filters, setFilters, reset } = useReportedIssuesFilters() // per-list
+const { filters: shared } = useIssuesSharedFilters()              // shared date range
+const { scopedQueryParams } = useEntityScope()                    // { workflow_id } | { agent_id }
+const [search] = useAppDebounce(filters.search, 300)
+const { data } = useGetReportedIssuesQuery({
+  pathParams: scopedQueryParams,
+  queryParams: { ...filters, ...shared, search },                 // filters ARE the query key
+})
+
+// components/reported-issues-quick-filter/useEntityReportedIssuesQuickFilters.tsx
+const { filters, setFilters } = useReportedIssuesFilters()        // SAME hook, co-mounted — fine
+```
+
+- Reported **table + quick-filter** → same hook → shared (one URL namespace).
+- Reported **vs** suggested → different prefixes → isolated.
+- Date range across the **whole section + detail** → `useIssuesSharedFilters` → shared by entity scope.
+
+> The `shared.filters.ts` file only earns its place when a dimension genuinely
+> spans the section (an analytics date range is the textbook case). If a module's
+> lists share nothing, skip it — it's just per-view isolated hooks.
+
+---
+
+## 16. i18n
 
 Filter *labels* and option text continue to come from `next-intl`
 (`useTranslations`). The architecture is values-only; nothing about it touches
@@ -605,7 +715,7 @@ labels, etc.
 
 ---
 
-## 16. What this deletes
+## 17. What this deletes
 
 - `src/providers/filters-provider/` — `FiltersProvider`, `FiltersContextBridge`,
   `useFilters`, `utils.ts`, types (the 4-source merge, `createJSONParser`,
@@ -618,7 +728,7 @@ labels, etc.
 
 ---
 
-## 17. Edge cases to keep in mind
+## 18. Edge cases to keep in mind
 
 - **Entity transiently `null`** (`useEntity().isLoading`) → handled by the
   three-state `scopeId` (§7); the snapshot waits.
@@ -636,7 +746,7 @@ labels, etc.
 
 ---
 
-## 18. Migration plan (incremental, no big bang)
+## 19. Migration plan (incremental, no big bang)
 
 1. Add `src/lib/filters/` (factory, snapshot, parsers, prefixes) and unit-test the
    parsers. No behaviour change yet. `FiltersProvider` stays.
@@ -654,7 +764,7 @@ labels, etc.
 
 ---
 
-## 19. Conventions checklist
+## 20. Conventions checklist
 
 - [ ] One `filters.ts` per module; never import another module's filters.
 - [ ] Register every `prefix` in `FILTER_PREFIXES`; keep them unique.
