@@ -39,6 +39,8 @@ export type ModuleViewProps = {
   isFetching: boolean
   rows: Row[]
   onClear: () => void
+  /** Makes rows clickable (e.g. open a detail page for that row). */
+  onRowClick?: (row: Row) => void
   /** Child links, scope switchers, etc. */
   footer?: ReactNode
 }
@@ -63,6 +65,7 @@ export function ModuleView(props: ModuleViewProps) {
     isFetching,
     rows,
     onClear,
+    onRowClick,
     footer,
   } = props
 
@@ -175,7 +178,11 @@ export function ModuleView(props: ModuleViewProps) {
         {rows.map((r) => (
           <div
             key={r.id}
-            className="grid grid-cols-[1fr_8rem_12rem] gap-2 border-b p-2 text-sm last:border-b-0"
+            data-testid={`row-${r.id}`}
+            onClick={onRowClick ? () => onRowClick(r) : undefined}
+            className={`grid grid-cols-[1fr_8rem_12rem] gap-2 border-b p-2 text-sm last:border-b-0 ${
+              onRowClick ? "cursor-pointer hover:bg-muted" : ""
+            }`}
           >
             <span>{r.name}</span>
             <span>{r.category}</span>

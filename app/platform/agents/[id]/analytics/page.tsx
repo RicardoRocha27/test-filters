@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 
 import { DateRangeBar } from "@/components/demo/date-range-bar"
 import { ModuleView } from "@/components/demo/module-view"
@@ -13,6 +13,7 @@ import { useAgentAnalyticsTable } from "@/modules/analytics/use-analytics-table"
 
 export default function AgentAnalyticsPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const t = useAgentAnalyticsTable(id)
 
   // For link-carry: bake the SHARED date range into the child link so it arrives
@@ -54,6 +55,17 @@ export default function AgentAnalyticsPage() {
         isFetching={t.isFetching}
         rows={t.rows}
         onClear={t.reset}
+        onRowClick={(row) =>
+          // Open this row's detail page. Its search filter is scoped to the row id,
+          // so each row keeps its own search (see the case-detail page). The shared
+          // date range is carried along.
+          router.push(
+            analyticsDate.serialize(
+              `/platform/agents/${id}/analytics/cases/${row.id}`,
+              dateFilters
+            )
+          )
+        }
         footer={
           <div className="flex flex-col gap-1 text-sm">
             <p className="text-muted-foreground">

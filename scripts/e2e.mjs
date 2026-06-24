@@ -481,6 +481,45 @@ const readFilters = async (page) =>
   await ctx.close()
 }
 
+// 16) Clickable rows → per-row detail search is isolated by row id, and remembered
+{
+  console.log("\n[16] per-row detail search: isolated between rows, restored per row")
+  const { ctx, page } = await fresh()
+  await page.goto(`${BASE}/platform/agents/agent-1/analytics`)
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  const rows = page.locator('[data-testid^="row-"]')
+
+  // Row A → set a search on its detail page.
+  await rows.nth(0).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.getByTestId("case-search").fill("alpha")
+  await page.waitForTimeout(400)
+  check("row A detail: cad_search=alpha", page.url().includes("cad_search=alpha"), page.url().replace(BASE, ""))
+
+  // Back, then open a DIFFERENT row → its search must be empty (isolated).
+  await page.getByRole("link", { name: /Back to analytics/ }).click()
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.locator('[data-testid^="row-"]').nth(1).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.waitForTimeout(500)
+  const fB = await page.getByTestId("case-filters").textContent().then((t) => JSON.parse(t))
+  check("row B detail: search isolated (empty, not 'alpha')", fB.search === "", `search=${JSON.stringify(fB.search)}`)
+  check("row B detail: no cad_search in URL", !page.url().includes("cad_search"), page.url().replace(BASE, ""))
+
+  // Back, reopen row A → its search is restored.
+  await page.getByRole("link", { name: /Back to analytics/ }).click()
+  await page.getByRole("heading", { name: "Agent · Analytics" }).waitFor()
+  await waitForRows(page)
+  await page.locator('[data-testid^="row-"]').nth(0).click()
+  await page.getByRole("heading", { name: "Case detail" }).waitFor()
+  await page.waitForTimeout(700)
+  const fA = await page.getByTestId("case-filters").textContent().then((t) => JSON.parse(t))
+  check("row A detail: search restored to 'alpha'", fA.search === "alpha", `search=${JSON.stringify(fA.search)}`)
+  await ctx.close()
+}
+
 console.log(`\n${failures === 0 ? "ALL PASS ✓" : `${failures} FAILURE(S) ✗`}`)
 await browser.close()
 process.exit(failures === 0 ? 0 : 1)
