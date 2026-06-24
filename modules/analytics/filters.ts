@@ -32,11 +32,11 @@ const workflow = createModuleFilters({
  */
 export function useAgentAnalyticsFilters() {
   const { id } = useParams<{ id: string }>()
-  return agent.useFilters(id ?? null)
+  return agent.useFilters({ scopeId: id ?? null })
 }
 
 /** Same shape, scoped to the workflow id — fully isolated from agent analytics. */
 export function useWorkflowAnalyticsFilters() {
   const { id } = useParams<{ id: string }>()
-  return workflow.useFilters(id ?? null)
+  return workflow.useFilters({ scopeId: id ?? null })
 }

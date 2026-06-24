@@ -50,7 +50,7 @@ export function createModuleFilters<P extends ParserMap>(
 
   type Values = inferParserType<P>
 
-  function useFilters(scopeId?: string | null) {
+  function useFilters({ scopeId }: { scopeId?: string | null } = {}) {
     const [filters, setFilters] = useQueryStates(parsers, {
       urlKeys,
       ...options,

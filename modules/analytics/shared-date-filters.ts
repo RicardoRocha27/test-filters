@@ -21,5 +21,5 @@ export const analyticsDate = createModuleFilters({
 
 export function useAnalyticsDateRange() {
   const { id } = useParams<{ id: string }>()
-  return analyticsDate.useFilters(id ?? null)
+  return analyticsDate.useFilters({ scopeId: id ?? null })
 }

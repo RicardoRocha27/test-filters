@@ -20,5 +20,5 @@ const base = createModuleFilters({
 
 export function useCaseDetailFilters() {
   const { caseId } = useParams<{ caseId: string }>()
-  return base.useFilters(caseId ?? null)
+  return base.useFilters({ scopeId: caseId ?? null })
 }
